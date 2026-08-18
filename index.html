@@ -8,6 +8,7 @@
 <body>
 <x-dc>
 <helmet>
+<script src="fullscreen.js"></script>
 <style>
   @keyframes spin-hint { 0%,100%{ transform: rotate(0deg); } 50%{ transform: rotate(90deg); } }
   html, body { margin: 0; padding: 0; }
@@ -48,12 +49,29 @@
     </svg>
     <span>{{ fullscreenLabel }}</span>
   </div>
+  <sc-if value="{{ showIntro }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;z-index:120;background:rgba(13,16,48,0.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;backdrop-filter:blur(3px);">
+      <div style="color:#fff;font-size:22px;font-weight:600;text-align:center;line-height:1.4;max-width:22ch;">Enter full screen for better experience</div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div onClick="{{ onIntroFullscreen }}" style="display:flex;align-items:center;gap:8px;padding:12px 22px;border-radius:999px;background:#fff;color:#1a1550;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(13,16,48,0.28);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1a1550" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 9 4 4 9 4"></polyline>
+            <polyline points="15 4 20 4 20 9"></polyline>
+            <polyline points="20 15 20 20 15 20"></polyline>
+            <polyline points="9 20 4 20 4 15"></polyline>
+          </svg>
+          <span>Full screen</span>
+        </div>
+        <div onClick="{{ onIntroSkip }}" style="padding:12px 22px;border-radius:999px;background:rgba(255,255,255,0.16);border:1px solid rgba(255,255,255,0.45);color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Skip</div>
+      </div>
+    </div>
+  </sc-if>
 </div>
 
 </x-dc>
 <script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
-  state = { isTouch: false, isPortrait: false, entered: false, showRotateOverlay: false, pressed: false, vw: 1440, vh: 900, isFullscreen: false };
+  state = { isTouch: false, isPortrait: false, entered: false, showRotateOverlay: false, pressed: false, vw: 1440, vh: 900, isFullscreen: false, showIntro: false };
 
   componentDidMount() {
     const touchQuery = window.matchMedia('(pointer: coarse) and (hover: none)');
@@ -73,6 +91,8 @@ class Component extends DCLogic {
     };
     this.onOrientationChangeGuard = () => {};
     document.addEventListener('fullscreenchange', this.onFullscreenChange);
+    const FS = window.PBFullscreen;
+    this.setState({ isFullscreen: !!(FS && FS.isFs()), showIntro: !!(FS && !FS.hasChoice()) });
     portraitQuery.addEventListener('change', this.onOrientationChange);
     this._portraitQuery = portraitQuery;
   }
@@ -86,14 +106,19 @@ class Component extends DCLogic {
   onFullscreenChange = () => this.setState({ isFullscreen: !!document.fullscreenElement });
 
   toggleFullscreen = () => {
-    const el = document.documentElement;
-    if (!document.fullscreenElement) {
-      const req = el.requestFullscreen || el.webkitRequestFullscreen;
-      if (req) req.call(el);
-    } else {
-      const exit = document.exitFullscreen || document.webkitExitFullscreen;
-      if (exit) exit.call(document);
-    }
+    if (window.PBFullscreen) window.PBFullscreen.toggle();
+  };
+
+  handleIntroFullscreen = () => {
+    const FS = window.PBFullscreen;
+    if (FS) { FS.setChoice('fullscreen'); FS.enter(); }
+    this.setState({ showIntro: false });
+  };
+
+  handleIntroSkip = () => {
+    const FS = window.PBFullscreen;
+    if (FS) FS.setChoice('skip');
+    this.setState({ showIntro: false });
   };
 
   componentDidUpdate() {
@@ -170,6 +195,9 @@ class Component extends DCLogic {
     return {
       setBgRef: this.setBgRef,
       onToggleFullscreen: this.toggleFullscreen,
+      showIntro: this.state.showIntro,
+      onIntroFullscreen: this.handleIntroFullscreen,
+      onIntroSkip: this.handleIntroSkip,
       fullscreenLabel: this.state.isFullscreen ? 'Exit full screen' : 'Full screen',
       stageStyle,
       boothStyle,
