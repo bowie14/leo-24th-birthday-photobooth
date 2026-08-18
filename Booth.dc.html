@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  html, body { margin: 0; padding: 0; }
+  @keyframes countdown-pulse { 0%{ transform: scale(1); opacity: 1; } 100%{ transform: scale(1.6); opacity: 0; } }
+</style>
+</helmet>
+<div style="position:relative;width:100vw;height:100vh;overflow:hidden;background:#0d1030;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="{{ stageStyle }}">
+    <img ref="{{ setBgRef }}" src="uploads/booth-screen-desktop.png" alt="booth background" style="position:absolute;inset:0;width:100%;height:100%;" />
+
+    <div style="{{ cameraAreaStyle }}">
+      <video ref="{{ videoRef }}" autoPlay="{{ true }}" playsInline="{{ true }}" muted="{{ true }}" style="{{ videoStyle }}"></video>
+      <img ref="{{ setFrameRef }}" src="uploads/frame-1.png" alt="frame" style="{{ frameOverlayStyle }}" />
+      <sc-if value="{{ countingDown }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:5;">
+          <div style="font-size:min(12vw,120px);font-weight:800;color:#fff;text-shadow:0 4px 20px rgba(0,0,0,0.5);">{{ countdownValue }}</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ cameraError }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:6;background:rgba(0,0,0,0.65);padding:16px;text-align:center;">
+          <div style="color:#fff;font-size:16px;line-height:1.5;">Unable to access the camera. Please allow camera permission and reload the page.</div>
+        </div>
+      </sc-if>
+    </div>
+
+    <div style="{{ stripAreaStyle }}">
+      <sc-for list="{{ slots }}" as="slot" hint-placeholder-count="4">
+        <div style="{{ slot.style }}">
+          <img ref="{{ slot.setRef }}" alt="captured" style="width:100%;height:100%;object-fit:cover;" />
+        </div>
+      </sc-for>
+      <img src="uploads/strip-complete.png" alt="strip frame" style="position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;" />
+    </div>
+
+    <img ref="{{ setTimerRef }}" src="uploads/icon-timer-3s.png" alt="Toggle timer" onClick="{{ onToggleTimer }}" style="{{ timerIconStyle }}" />
+    <img src="uploads/btn-capture.png" alt="Capture" onClick="{{ onCapture }}" style="{{ captureBtnStyle }}" />
+    <img src="uploads/btn-retake.png" alt="Retake" onClick="{{ onRetake }}" style="{{ retakeBtnStyle }}" />
+    <img src="uploads/btn-next.png" alt="Next" onClick="{{ onNext }}" style="{{ nextBtnStyle }}" />
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    isTouch: false, vw: 1440, vh: 900,
+    shotIndex: 0, photos: [null, null, null, null],
+    countingDown: false, countdownValue: 3,
+    timerMode: '3s', // 'off' | '3s' | '10s'
+    streamReady: false, cameraError: false,
+  };
+
+  componentDidMount() {
+    const touchQuery = window.matchMedia('(pointer: coarse) and (hover: none)');
+    this.setState({ isTouch: touchQuery.matches, vw: window.innerWidth, vh: window.innerHeight });
+    this.onResize = () => this.setState({ vw: window.innerWidth, vh: window.innerHeight });
+    window.addEventListener('resize', this.onResize);
+    this.videoEl = null;
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false }).then((stream) => {
+      this._stream = stream;
+      if (this.videoEl) { this.videoEl.srcObject = stream; this.videoEl.play().catch(() => {}); }
+      this.setState({ streamReady: true, cameraError: false });
+    }).catch(() => {
+      this.setState({ cameraError: true });
+    });
+    this.syncImageRefs();
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.onResize);
+    if (this._stream) this._stream.getTracks().forEach((t) => t.stop());
+    if (this._countdownTimer) clearInterval(this._countdownTimer);
+  }
+
+  componentDidUpdate() {
+    this.syncImageRefs();
+  }
+
+  setVideoRef = (el) => {
+    this.videoEl = el;
+    if (el && this._stream) { el.srcObject = this._stream; el.play().catch(() => {}); }
+  };
+
+  setBgRef = (el) => { this.bgRef = el; this.syncImageRefs(); };
+  setFrameRef = (el) => { this.frameRef = el; this.syncImageRefs(); };
+  setTimerRef = (el) => { this.timerRef = el; this.syncImageRefs(); };
+
+  slotRefs = [null, null, null, null];
+  makeSlotRef = (i) => (el) => {
+    this.slotRefs[i] = el;
+    this.syncImageRefs();
+  };
+
+  computeSources() {
+    const isTouch = this.state.isTouch;
+    const bgSrc = isTouch ? 'uploads/booth-screen-mobile.png' : 'uploads/booth-screen-desktop.png';
+    const frameIdx = Math.min(this.state.shotIndex, 3);
+    const frameSrc = `uploads/frame-${frameIdx + 1}.png`;
+    const timerIconSrc = this.state.timerMode === 'off'
+      ? 'uploads/icon-timer-off.png'
+      : (this.state.timerMode === '3s' ? 'uploads/icon-timer-3s.png' : 'uploads/icon-timer-10s.png');
+    return { bgSrc, frameSrc, timerIconSrc };
+  }
+
+  syncImageRefs = () => {
+    const { bgSrc, frameSrc, timerIconSrc } = this.computeSources();
+    if (this.bgRef && this.bgRef.getAttribute('src') !== bgSrc) this.bgRef.src = bgSrc;
+    if (this.frameRef && this.frameRef.getAttribute('src') !== frameSrc) this.frameRef.src = frameSrc;
+    if (this.timerRef && this.timerRef.getAttribute('src') !== timerIconSrc) this.timerRef.src = timerIconSrc;
+    this.state.photos.forEach((photo, i) => {
+      const el = this.slotRefs[i];
+      if (!el) return;
+      if (photo) {
+        if (el.getAttribute('src') !== photo) el.src = photo;
+        el.style.visibility = 'visible';
+      } else {
+        if (el.hasAttribute('src')) el.removeAttribute('src');
+        el.style.visibility = 'hidden';
+      }
+    });
+  };
+
+  snapPhoto = () => {
+    const video = this.videoEl;
+    if (!video || !video.videoWidth) { this.setState({ cameraError: true }); return; }
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1); // mirror to match the mirrored preview
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    this.setState((s) => {
+      const photos = s.photos.slice();
+      photos[s.shotIndex] = dataUrl;
+      const nextIndex = Math.min(s.shotIndex + 1, 3);
+      return { photos, shotIndex: nextIndex };
+    }, () => {
+      if (this.state.photos.every(Boolean)) this.composeFinalStrip();
+    });
+  };
+
+  composeFinalStrip = () => {
+    // slot rects from strip-complete.svg, viewBox 600x1800
+    const slotRects = [
+      { x: 43.24, y: 52.58, w: 516.5, h: 376 },
+      { x: 43.24, y: 453.24, w: 516.5, h: 376 },
+      { x: 43.24, y: 853.91, w: 516.5, h: 376 },
+      { x: 43.24, y: 1254.58, w: 516.5, h: 376 },
+    ];
+    const bg = new Image();
+    bg.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 600;
+      canvas.height = 1800;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bg, 0, 0, 600, 1800);
+      let loaded = 0;
+      const imgs = this.state.photos.map(() => new Image());
+      const finish = () => {
+        loaded += 1;
+        if (loaded < 4) return;
+        this.state.photos.forEach((_, i) => {
+          const r = slotRects[i];
+          const img = imgs[i];
+          const imgRatio = img.width / img.height;
+          const boxRatio = r.w / r.h;
+          let sx, sy, sw, sh;
+          if (imgRatio > boxRatio) {
+            sh = img.height; sw = sh * boxRatio; sx = (img.width - sw) / 2; sy = 0;
+          } else {
+            sw = img.width; sh = sw / boxRatio; sx = 0; sy = (img.height - sh) / 2;
+          }
+          ctx.drawImage(img, sx, sy, sw, sh, r.x, r.y, r.w, r.h);
+        });
+        try { localStorage.setItem('photobooth-strip', canvas.toDataURL('image/png')); } catch (e) {}
+      };
+      this.state.photos.forEach((src, i) => { imgs[i].onload = finish; imgs[i].src = src; });
+    };
+    bg.src = 'uploads/strip-complete.png';
+  };
+
+  handleCapture = () => {
+    if (this.state.countingDown || this.state.shotIndex >= 4) return;
+    const seconds = this.state.timerMode === 'off' ? 0 : (this.state.timerMode === '3s' ? 3 : 10);
+    if (seconds === 0) { this.snapPhoto(); return; }
+    this.setState({ countingDown: true, countdownValue: seconds });
+    this._countdownTimer = setInterval(() => {
+      this.setState((s) => {
+        if (s.countdownValue <= 1) {
+          clearInterval(this._countdownTimer);
+          setTimeout(() => { this.setState({ countingDown: false }); this.snapPhoto(); }, 0);
+          return { countdownValue: 0 };
+        }
+        return { countdownValue: s.countdownValue - 1 };
+      });
+    }, 1000);
+  };
+
+  handleRetake = () => {
+    if (this.state.shotIndex === 0) return;
+    this.setState((s) => {
+      const photos = s.photos.slice();
+      photos[s.shotIndex - 1] = null;
+      return { photos, shotIndex: s.shotIndex - 1 };
+    });
+  };
+
+  handleNext = () => {
+    if (this.state.photos.every(Boolean)) {
+      window.location.href = 'Result.dc.html';
+    } else {
+      this.handleCapture();
+    }
+  };
+
+  toggleTimer = () => {
+    this.setState((s) => ({ timerMode: s.timerMode === 'off' ? '3s' : (s.timerMode === '3s' ? '10s' : 'off') }));
+  };
+
+  renderVals() {
+    const isTouch = this.state.isTouch;
+    const designW = isTouch ? 844 : 1440;
+    const designH = isTouch ? 390 : 900;
+
+    const rects = isTouch
+      ? {
+          // capture/retake never shown together (capture only pre-first-shot, retake+next only after) so their original overlap never triggers.
+          camera: { left: 34.947, top: 21.936, width: 38.734, height: 61.023 },
+          capture: { left: 80.769, top: 44.064, width: 7.867, height: 17.015 },
+          retake: { left: 80.769, top: 47.051, width: 7.867, height: 17.015 },
+          next: { left: 80.769, top: 65.943, width: 7.867, height: 17.015 },
+          timer: { left: 77.700, top: 19.456, width: 6.114, height: 13.231 },
+          strip: { left: 18.544, top: 28.603, width: 8.174, height: 53.059 },
+        }
+      : {
+          // capture/retake never shown together (capture only pre-first-shot, retake+next only after) so their original overlap never triggers.
+          camera: { left: 32.358, top: 18.316, width: 47.569, height: 55.407 },
+          capture: { left: 53.137, top: 79.04, width: 5.828, height: 9.324 },
+          retake: { left: 49.6, top: 79.04, width: 5.828, height: 9.324 },
+          next: { left: 56.673, top: 79.04, width: 5.828, height: 9.324 },
+          timer: { left: 80.842, top: 18.316, width: 5.903, height: 9.444 },
+          strip: { left: 8.771, top: 25.912, width: 10.037, height: 48.177 },
+        };
+
+    const vw = this.state.vw || designW;
+    const vh = this.state.vh || designH;
+    const scale = Math.max(vw / designW, vh / designH);
+    const stageW = designW * scale;
+    const stageH = designH * scale;
+    const stageStyle = {
+      position: 'absolute',
+      left: (vw - stageW) / 2 + 'px',
+      top: (vh - stageH) / 2 + 'px',
+      width: stageW + 'px',
+      height: stageH + 'px',
+    };
+
+    const toStyle = (r, extra) => Object.assign({
+      position: 'absolute',
+      left: r.left + '%',
+      top: r.top + '%',
+      width: r.width + '%',
+      height: r.height + '%',
+    }, extra || {});
+
+    // camera-window % within frame's own viewBox (600x400)
+    const windowRect = { left: 7.148, top: 3.008, width: 86.083, height: 94.0 };
+
+    const showCapture = this.state.shotIndex === 0;
+    const showRetakeNext = this.state.shotIndex >= 1;
+    const canRetake = this.state.shotIndex > 0;
+
+    const slotRects = [
+      { left: 7.207, top: 2.921, width: 86.083, height: 20.889 },
+      { left: 7.207, top: 25.180, width: 86.083, height: 20.889 },
+      { left: 7.207, top: 47.439, width: 86.083, height: 20.889 },
+      { left: 7.207, top: 69.699, width: 86.083, height: 20.889 },
+    ];
+    const slots = this.state.photos.map((photo, i) => ({
+      photo,
+      setRef: this.makeSlotRef(i),
+      style: Object.assign({
+        position: 'absolute',
+        left: slotRects[i].left + '%',
+        top: slotRects[i].top + '%',
+        width: slotRects[i].width + '%',
+        height: slotRects[i].height + '%',
+        background: photo ? 'transparent' : 'rgba(255,255,255,0.08)',
+        overflow: 'hidden',
+        zIndex: 1,
+      }),
+    }));
+
+    return {
+      stageStyle,
+      setBgRef: this.setBgRef,
+      setFrameRef: this.setFrameRef,
+      setTimerRef: this.setTimerRef,
+      cameraAreaStyle: Object.assign({ overflow: 'hidden' }, toStyle(rects.camera)),
+      videoRef: this.setVideoRef,
+      videoStyle: {
+        position: 'absolute',
+        left: windowRect.left + '%',
+        top: windowRect.top + '%',
+        width: windowRect.width + '%',
+        height: windowRect.height + '%',
+        objectFit: 'cover',
+        transform: 'scaleX(-1)',
+        background: '#111',
+      },
+      frameOverlayStyle: { position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 2, pointerEvents: 'none' },
+      countingDown: this.state.countingDown,
+      countdownValue: this.state.countdownValue,
+      cameraError: this.state.cameraError,
+      stripAreaStyle: toStyle(rects.strip),
+      slots,
+      timerIconStyle: toStyle(rects.timer, { cursor: 'pointer' }),
+      captureBtnStyle: toStyle(rects.capture, { cursor: 'pointer', display: showCapture ? 'block' : 'none' }),
+      retakeBtnStyle: toStyle(rects.retake, { cursor: canRetake ? 'pointer' : 'default', opacity: canRetake ? 1 : 0.4, display: showRetakeNext ? 'block' : 'none' }),
+      nextBtnStyle: toStyle(rects.next, { cursor: 'pointer', display: showRetakeNext ? 'block' : 'none' }),
+      onToggleTimer: this.toggleTimer,
+      onCapture: this.handleCapture,
+      onRetake: this.handleRetake,
+      onNext: this.handleNext,
+    };
+  }
+}
+
+</script>
+</body>
+</html>

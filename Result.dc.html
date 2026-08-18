@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>html, body { margin: 0; padding: 0; }</style>
+</helmet>
+<div style="position:relative;width:100vw;height:100vh;overflow:hidden;background:#0d1030;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="{{ stageStyle }}">
+    <img ref="{{ setBgRef }}" src="uploads/result-screen-desktop.png" alt="result background" style="position:absolute;inset:0;width:100%;height:100%;" />
+    <img ref="{{ setStripRef }}" src="uploads/strip-complete.png" alt="Your photo strip" style="{{ stripStyle }}" />
+    <img src="uploads/btn-download.png" alt="Download" onClick="{{ onDownload }}" style="{{ downloadStyle }}" />
+    <img src="uploads/btn-restart.png" alt="Restart" onClick="{{ onRestart }}" style="{{ restartStyle }}" />
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { isTouch: false, vw: 1440, vh: 900, savedStrip: null };
+
+  componentDidMount() {
+    const touchQuery = window.matchMedia('(pointer: coarse) and (hover: none)');
+    let savedStrip = null;
+    try { savedStrip = localStorage.getItem('photobooth-strip'); } catch (e) {}
+    this.setState({ isTouch: touchQuery.matches, vw: window.innerWidth, vh: window.innerHeight, savedStrip });
+    this.onResize = () => this.setState({ vw: window.innerWidth, vh: window.innerHeight });
+    window.addEventListener('resize', this.onResize);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.onResize);
+  }
+
+  componentDidUpdate() {
+    this.syncImageRefs();
+  }
+
+  setBgRef = (el) => { this.bgRef = el; this.syncImageRefs(); };
+  setStripRef = (el) => { this.stripRef = el; this.syncImageRefs(); };
+
+  syncImageRefs = () => {
+    const bgSrc = this.state.isTouch ? 'uploads/result-screen-mobile.png' : 'uploads/result-screen-desktop.png';
+    const stripSrc = this.state.savedStrip || 'uploads/strip-complete.png';
+    if (this.bgRef && this.bgRef.getAttribute('src') !== bgSrc) this.bgRef.src = bgSrc;
+    if (this.stripRef && this.stripRef.getAttribute('src') !== stripSrc) this.stripRef.src = stripSrc;
+  };
+
+  handleDownload = () => {
+    const a = document.createElement('a');
+    a.href = this.state.savedStrip || 'uploads/strip-complete.png';
+    a.download = 'photobooth-strip.png';
+    a.click();
+  };
+
+  handleRestart = () => {
+    try { localStorage.removeItem('photobooth-strip'); } catch (e) {}
+    window.location.href = 'Landing.dc.html';
+  };
+
+  renderVals() {
+    const isTouch = this.state.isTouch;
+    const designW = isTouch ? 844 : 1440;
+    const designH = isTouch ? 390 : 900;
+
+    const rects = isTouch
+      ? {
+          strip: { left: 41.968, top: 16.887, width: 18.31, height: 59.423 },
+          download: { left: 36.610, top: 82.879, width: 10.723, height: 6.967 },
+          restart: { left: 51.930, top: 82.879, width: 15.258, height: 6.967 },
+        }
+      : {
+          strip: { left: 37.23, top: 15.924, width: 25.538, height: 61.291 },
+          download: { left: 29.75, top: 83.991, width: 14.958, height: 7.184 },
+          restart: { left: 51.132, top: 83.991, width: 21.286, height: 7.184 },
+        };
+
+    const vw = this.state.vw || designW;
+    const vh = this.state.vh || designH;
+    const scale = Math.max(vw / designW, vh / designH);
+    const stageW = designW * scale;
+    const stageH = designH * scale;
+    const stageStyle = {
+      position: 'absolute',
+      left: (vw - stageW) / 2 + 'px',
+      top: (vh - stageH) / 2 + 'px',
+      width: stageW + 'px',
+      height: stageH + 'px',
+    };
+
+    const toStyle = (r, extra) => Object.assign({
+      position: 'absolute',
+      left: r.left + '%',
+      top: r.top + '%',
+      width: r.width + '%',
+      height: r.height + '%',
+      objectFit: 'contain',
+    }, extra || {});
+
+    return {
+      setBgRef: this.setBgRef,
+      setStripRef: this.setStripRef,
+      stageStyle,
+      stripStyle: toStyle(rects.strip),
+      downloadStyle: toStyle(rects.download, { cursor: 'pointer' }),
+      restartStyle: toStyle(rects.restart, { cursor: 'pointer' }),
+      onDownload: this.handleDownload,
+      onRestart: this.handleRestart,
+    };
+  }
+}
+
+</script>
+</body>
+</html>
