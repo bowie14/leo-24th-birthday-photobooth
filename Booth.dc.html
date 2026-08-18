@@ -65,7 +65,6 @@ class Component extends DCLogic {
     this.setState({ isTouch: touchQuery.matches, vw: window.innerWidth, vh: window.innerHeight });
     this.onResize = () => this.setState({ vw: window.innerWidth, vh: window.innerHeight });
     window.addEventListener('resize', this.onResize);
-    this.videoEl = null;
     this.startCamera();
     this.syncImageRefs();
   }
