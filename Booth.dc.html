@@ -26,8 +26,9 @@
         </div>
       </sc-if>
       <sc-if value="{{ cameraError }}" hint-placeholder-val="{{ false }}">
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:6;background:rgba(0,0,0,0.65);padding:16px;text-align:center;">
-          <div style="color:#fff;font-size:16px;line-height:1.5;">Unable to access the camera. Please allow camera permission and reload the page.</div>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:6;background:rgba(0,0,0,0.65);padding:16px;text-align:center;">
+          <div style="color:#fff;font-size:16px;line-height:1.5;">Unable to access the camera. Please allow camera permission in your browser, then try again.</div>
+          <div onClick="{{ onCapture }}" style="color:#0d1030;background:#fff;font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;cursor:pointer;">Try again</div>
         </div>
       </sc-if>
     </div>
@@ -65,15 +66,27 @@ class Component extends DCLogic {
     this.onResize = () => this.setState({ vw: window.innerWidth, vh: window.innerHeight });
     window.addEventListener('resize', this.onResize);
     this.videoEl = null;
+    this.startCamera();
+    this.syncImageRefs();
+  }
+
+  startCamera = () => {
+    this.setState({ cameraError: false });
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false }).then((stream) => {
       this._stream = stream;
-      if (this.videoEl) { this.videoEl.srcObject = stream; this.videoEl.play().catch(() => {}); }
-      this.setState({ streamReady: true, cameraError: false });
+      this.attachStream();
     }).catch(() => {
       this.setState({ cameraError: true });
     });
-    this.syncImageRefs();
-  }
+  };
+
+  attachStream = () => {
+    const video = this.videoEl;
+    if (!video || !this._stream) return;
+    video.srcObject = this._stream;
+    video.play().catch(() => {});
+    video.onloadedmetadata = () => this.setState({ streamReady: true, cameraError: false });
+  };
 
   componentWillUnmount() {
     window.removeEventListener('resize', this.onResize);
@@ -87,7 +100,7 @@ class Component extends DCLogic {
 
   setVideoRef = (el) => {
     this.videoEl = el;
-    if (el && this._stream) { el.srcObject = this._stream; el.play().catch(() => {}); }
+    if (el && this._stream) this.attachStream();
   };
 
   setBgRef = (el) => { this.bgRef = el; this.syncImageRefs(); };
@@ -131,7 +144,10 @@ class Component extends DCLogic {
 
   snapPhoto = () => {
     const video = this.videoEl;
-    if (!video || !video.videoWidth) { this.setState({ cameraError: true }); return; }
+    if (!video || !video.videoWidth) {
+      this.setState({ cameraError: true, countingDown: false });
+      return;
+    }
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -192,6 +208,7 @@ class Component extends DCLogic {
 
   handleCapture = () => {
     if (this.state.countingDown || this.state.shotIndex >= 4) return;
+    if (this.state.cameraError) { this.startCamera(); return; }
     const seconds = this.state.timerMode === 'off' ? 0 : (this.state.timerMode === '3s' ? 3 : 10);
     if (seconds === 0) { this.snapPhoto(); return; }
     this.setState({ countingDown: true, countdownValue: seconds });
