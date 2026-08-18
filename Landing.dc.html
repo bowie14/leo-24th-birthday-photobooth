@@ -13,7 +13,7 @@
   html, body { margin: 0; padding: 0; }
 </style>
 </helmet>
-<div style="position:relative;width:100vw;height:100vh;overflow:hidden;background:#0d1030;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+<div style="position:relative;width:100vw;height:100vh;overflow:hidden;background:#b7c1f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
   <sc-if value="{{ !entered }}" hint-placeholder-val="{{ true }}">
     <div style="{{ stageStyle }}">
       <img ref="{{ setBgRef }}" src="uploads/landing-desktop.png" alt="landing background" style="position:absolute;inset:0;width:100%;height:100%;" />
@@ -39,12 +39,21 @@
       </div>
     </sc-if>
   </sc-if>
+  <div onClick="{{ onToggleFullscreen }}" style="position:fixed;right:40px;bottom:40px;z-index:50;display:flex;align-items:center;gap:8px;padding:11px 18px;border-radius:999px;background:rgba(255,255,255,0.82);border:1px solid rgba(26,21,80,0.14);color:#1a1550;font-size:13px;font-weight:600;letter-spacing:0.01em;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 14px rgba(26,21,80,0.12);" style-hover="background:rgba(255,255,255,0.96);">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a1550" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="4 9 4 4 9 4"></polyline>
+      <polyline points="15 4 20 4 20 9"></polyline>
+      <polyline points="20 15 20 20 15 20"></polyline>
+      <polyline points="9 20 4 20 4 15"></polyline>
+    </svg>
+    <span>{{ fullscreenLabel }}</span>
+  </div>
 </div>
 
 </x-dc>
 <script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
-  state = { isTouch: false, isPortrait: false, entered: false, showRotateOverlay: false, pressed: false, vw: 1440, vh: 900 };
+  state = { isTouch: false, isPortrait: false, entered: false, showRotateOverlay: false, pressed: false, vw: 1440, vh: 900, isFullscreen: false };
 
   componentDidMount() {
     const touchQuery = window.matchMedia('(pointer: coarse) and (hover: none)');
@@ -63,6 +72,7 @@ class Component extends DCLogic {
       this.setState({ isPortrait });
     };
     this.onOrientationChangeGuard = () => {};
+    document.addEventListener('fullscreenchange', this.onFullscreenChange);
     portraitQuery.addEventListener('change', this.onOrientationChange);
     this._portraitQuery = portraitQuery;
   }
@@ -70,7 +80,21 @@ class Component extends DCLogic {
   componentWillUnmount() {
     if (this._portraitQuery) this._portraitQuery.removeEventListener('change', this.onOrientationChange);
     window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('fullscreenchange', this.onFullscreenChange);
   }
+
+  onFullscreenChange = () => this.setState({ isFullscreen: !!document.fullscreenElement });
+
+  toggleFullscreen = () => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) req.call(el);
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
+    }
+  };
 
   componentDidUpdate() {
     this.syncImageRefs();
@@ -117,7 +141,7 @@ class Component extends DCLogic {
     // so the booth image never stretches independently of the background.
     const vw = this.state.vw || designW;
     const vh = this.state.vh || designH;
-    const scale = Math.max(vw / designW, vh / designH);
+    const scale = Math.max(vw / designW, vh / designH) * 0.95;
     const stageW = designW * scale;
     const stageH = designH * scale;
     const stageStyle = {
@@ -145,6 +169,8 @@ class Component extends DCLogic {
 
     return {
       setBgRef: this.setBgRef,
+      onToggleFullscreen: this.toggleFullscreen,
+      fullscreenLabel: this.state.isFullscreen ? 'Exit full screen' : 'Full screen',
       stageStyle,
       boothStyle,
       entered: this.state.entered,

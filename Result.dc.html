@@ -8,9 +8,12 @@
 <body>
 <x-dc>
 <helmet>
-<style>html, body { margin: 0; padding: 0; }</style>
+<style>
+  html, body { margin: 0; padding: 0; }
+  @keyframes spin-hint { 0%,100%{ transform: rotate(0deg); } 50%{ transform: rotate(90deg); } }
+</style>
 </helmet>
-<div style="position:relative;width:100vw;height:100vh;overflow:hidden;background:#0d1030;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+<div style="position:relative;width:100vw;height:100vh;overflow:hidden;background:#b7c1f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
   <div style="{{ stageStyle }}">
     <img ref="{{ setBgRef }}" src="uploads/result-screen-desktop.png" alt="result background" style="position:absolute;inset:0;width:100%;height:100%;" />
     <img ref="{{ setStripRef }}" alt="Your photo strip" style="{{ stripStyle }}" />
@@ -22,18 +25,43 @@
     <img src="uploads/btn-download.png" alt="Download" onClick="{{ onDownload }}" style="{{ downloadStyle }}" />
     <img src="uploads/btn-restart.png" alt="Restart" onClick="{{ onRestart }}" style="{{ restartStyle }}" />
   </div>
+  <div onClick="{{ onToggleFullscreen }}" style="position:fixed;right:40px;bottom:40px;z-index:50;display:flex;align-items:center;gap:8px;padding:11px 18px;border-radius:999px;background:rgba(255,255,255,0.82);border:1px solid rgba(26,21,80,0.14);color:#1a1550;font-size:13px;font-weight:600;letter-spacing:0.01em;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 14px rgba(26,21,80,0.12);" style-hover="background:rgba(255,255,255,0.96);">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a1550" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="4 9 4 4 9 4"></polyline>
+      <polyline points="15 4 20 4 20 9"></polyline>
+      <polyline points="20 15 20 20 15 20"></polyline>
+      <polyline points="9 20 4 20 4 15"></polyline>
+    </svg>
+    <span>{{ fullscreenLabel }}</span>
+  </div>
+  <sc-if value="{{ showRotateOverlay }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;background:rgba(255,255,255,0.5);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;z-index:100;">
+      <svg width="72" height="72" viewBox="0 0 24 24" fill="none" style="animation:spin-hint 1.4s ease-in-out infinite;">
+        <rect x="6" y="2" width="12" height="20" rx="2" stroke="#1a1550" stroke-width="1.8"></rect>
+        <line x1="10" y1="19" x2="14" y2="19" stroke="#1a1550" stroke-width="1.8" stroke-linecap="round"></line>
+      </svg>
+      <div style="font-size:22px;font-weight:600;color:#1a1550;text-align:center;padding:0 32px;">Turn your phone sideways to keep going!</div>
+    </div>
+  </sc-if>
 </div>
 
 </x-dc>
 <script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
-  state = { isTouch: false, vw: 1440, vh: 900, savedStrip: null };
+  state = { isTouch: false, vw: 1440, vh: 900, savedStrip: null, isFullscreen: false, isPortrait: false };
 
   componentDidMount() {
     const touchQuery = window.matchMedia('(pointer: coarse) and (hover: none)');
     this.setState({ isTouch: touchQuery.matches, vw: window.innerWidth, vh: window.innerHeight });
     this.onResize = () => this.setState({ vw: window.innerWidth, vh: window.innerHeight });
     window.addEventListener('resize', this.onResize);
+    document.addEventListener('fullscreenchange', this.onFullscreenChange);
+
+    const portraitQuery = window.matchMedia('(orientation: portrait)');
+    this.setState({ isPortrait: portraitQuery.matches });
+    this.onOrientationChange = (e) => this.setState({ isPortrait: e.matches });
+    portraitQuery.addEventListener('change', this.onOrientationChange);
+    this._portraitQuery = portraitQuery;
 
     // only accept a stored strip that matches the final 1200x1800 format (rejects stale data from older builds)
     let saved = null;
@@ -54,7 +82,22 @@ class Component extends DCLogic {
 
   componentWillUnmount() {
     window.removeEventListener('resize', this.onResize);
+    document.removeEventListener('fullscreenchange', this.onFullscreenChange);
+    if (this._portraitQuery) this._portraitQuery.removeEventListener('change', this.onOrientationChange);
   }
+
+  onFullscreenChange = () => this.setState({ isFullscreen: !!document.fullscreenElement });
+
+  toggleFullscreen = () => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) req.call(el);
+    } else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
+    }
+  };
 
   componentDidUpdate() {
     this.syncImageRefs();
@@ -110,7 +153,7 @@ class Component extends DCLogic {
 
     const vw = this.state.vw || designW;
     const vh = this.state.vh || designH;
-    const scale = Math.max(vw / designW, vh / designH);
+    const scale = Math.max(vw / designW, vh / designH) * 0.95;
     const stageW = designW * scale;
     const stageH = designH * scale;
     const stageStyle = {
@@ -133,6 +176,9 @@ class Component extends DCLogic {
     return {
       setBgRef: this.setBgRef,
       setStripRef: this.setStripRef,
+      onToggleFullscreen: this.toggleFullscreen,
+      showRotateOverlay: this.state.isTouch && this.state.isPortrait,
+      fullscreenLabel: this.state.isFullscreen ? 'Exit full screen' : 'Full screen',
       noStrip: !this.state.savedStrip,
       noStripStyle: Object.assign(toStyle(rects.strip), {
         display: 'flex',
