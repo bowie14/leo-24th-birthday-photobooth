@@ -125,6 +125,7 @@ class Component extends DCLogic {
 
   handleRestart = () => {
     try { localStorage.removeItem('photobooth-strip'); } catch (e) {}
+    if (window.PBFullscreen) window.PBFullscreen.markNavigating();
     window.location.href = 'Landing.dc.html';
   };
 

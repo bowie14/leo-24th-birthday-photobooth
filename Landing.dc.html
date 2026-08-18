@@ -84,7 +84,7 @@ class Component extends DCLogic {
     this.onOrientationChange = (e) => {
       const isPortrait = e.matches;
       if (this.state.showRotateOverlay && !isPortrait) {
-        window.location.href = 'Booth.dc.html';
+        this.navigateTo('Booth.dc.html');
         return;
       }
       this.setState({ isPortrait });
@@ -138,11 +138,16 @@ class Component extends DCLogic {
     if (this.bgRef && this.bgRef.getAttribute('src') !== bgSrc) this.bgRef.src = bgSrc;
   };
 
+  navigateTo = (url) => {
+    if (window.PBFullscreen) window.PBFullscreen.markNavigating();
+    window.location.href = url;
+  };
+
   handleBoothClick = () => {
     if (this.state.isTouch && this.state.isPortrait) {
       this.setState({ showRotateOverlay: true });
     } else {
-      window.location.href = 'Booth.dc.html';
+      this.navigateTo('Booth.dc.html');
     }
   };
 

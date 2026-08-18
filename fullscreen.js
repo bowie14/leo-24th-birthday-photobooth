@@ -48,14 +48,21 @@
     document.addEventListener('pointerdown', once, true);
   }
 
+  // Navigation force-exits fullscreen; that must NOT be read as the user opting out.
+  var navigating = false;
+  function markNavigating() { navigating = true; }
+  window.addEventListener('beforeunload', markNavigating);
+  window.addEventListener('pagehide', markNavigating);
+
   // Esc / browser UI exit counts as the user choosing non-fullscreen.
   document.addEventListener('fullscreenchange', function () {
-    if (!isFs()) setWant(false);
+    if (!isFs() && !navigating) setWant(false);
   });
 
   window.PBFullscreen = {
     isFs: isFs, want: want, enter: enter, exit: exit, toggle: toggle,
     hasChoice: hasChoice, setChoice: setChoice, resumeOnGesture: resumeOnGesture,
+    markNavigating: markNavigating,
   };
 
   if (document.readyState === 'loading') {

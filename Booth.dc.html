@@ -295,16 +295,21 @@ class Component extends DCLogic {
     }, () => {
       if (this.state.photos.every(Boolean)) {
         this.composeFinalStrip()
-          .then(() => { window.location.href = 'Result.dc.html'; })
+          .then(() => { this.navigateTo('Result.dc.html'); })
           .catch(() => { this.setState({ saveError: true }); });
       }
     });
   };
 
+  navigateTo = (url) => {
+    if (window.PBFullscreen) window.PBFullscreen.markNavigating();
+    window.location.href = url;
+  };
+
   handleRetrySave = () => {
     this.setState({ saveError: false });
     this.composeFinalStrip()
-      .then(() => { window.location.href = 'Result.dc.html'; })
+      .then(() => { this.navigateTo('Result.dc.html'); })
       .catch(() => { this.setState({ saveError: true }); });
   };
 
