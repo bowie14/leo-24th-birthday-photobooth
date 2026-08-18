@@ -1,73 +1,65 @@
-// Shared fullscreen state across pages (each screen is its own document, so the
-// browser drops fullscreen on navigation and only lets us re-enter on a user gesture).
+// Fullscreen + navigation bridge.
+// The app runs inside the index.html shell frame: the SHELL document owns fullscreen,
+// so swapping pages never drops it. Each page just asks the shell.
 (function () {
-  var WANT_KEY = 'photobooth-fullscreen';
-  var CHOICE_KEY = 'photobooth-fullscreen-choice';
+  var framed = false;
+  try { framed = !!window.parent && window.parent !== window; } catch (e) { framed = false; }
 
-  function root() { return document.documentElement; }
-  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  var shellFs = false;
 
-  function want() {
-    try { return localStorage.getItem(WANT_KEY) === '1'; } catch (e) { return false; }
-  }
-  function setWant(v) {
-    try { localStorage.setItem(WANT_KEY, v ? '1' : '0'); } catch (e) {}
+  function isFs() {
+    if (framed) return shellFs;
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
   }
 
-  function hasChoice() {
-    try { return !!localStorage.getItem(CHOICE_KEY); } catch (e) { return false; }
-  }
-  function setChoice(v) {
-    try { localStorage.setItem(CHOICE_KEY, v); } catch (e) {}
-  }
+  function post(msg) { try { window.parent.postMessage(msg, '*'); } catch (e) {} }
 
   function enter() {
-    setWant(true);
-    var el = root();
+    if (framed) return post({ pb: 'fs-enter' });
+    var el = document.documentElement;
     var req = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (!req) return Promise.resolve();
-    try { return Promise.resolve(req.call(el)).catch(function () {}); } catch (e) { return Promise.resolve(); }
+    if (!req) return;
+    try { Promise.resolve(req.call(el)).catch(function () {}); } catch (e) {}
   }
 
   function exit() {
-    setWant(false);
+    if (framed) return post({ pb: 'fs-exit' });
     var ex = document.exitFullscreen || document.webkitExitFullscreen;
-    if (!ex) return Promise.resolve();
-    try { return Promise.resolve(ex.call(document)).catch(function () {}); } catch (e) { return Promise.resolve(); }
+    if (!ex) return;
+    try { Promise.resolve(ex.call(document)).catch(function () {}); } catch (e) {}
   }
 
-  function toggle() { return isFs() ? exit() : enter(); }
-
-  // Re-enter on the first gesture of a freshly loaded page if the user wanted fullscreen.
-  function resumeOnGesture() {
-    if (!want() || isFs()) return;
-    var once = function () {
-      document.removeEventListener('pointerdown', once, true);
-      if (want() && !isFs()) enter();
-    };
-    document.addEventListener('pointerdown', once, true);
+  function toggle() {
+    if (framed) return post({ pb: 'fs-toggle' });
+    isFs() ? exit() : enter();
   }
 
-  // Navigation force-exits fullscreen; that must NOT be read as the user opting out.
-  var navigating = false;
-  function markNavigating() { navigating = true; }
-  window.addEventListener('beforeunload', markNavigating);
-  window.addEventListener('pagehide', markNavigating);
+  function navigate(url) {
+    if (framed) return post({ pb: 'nav', url: url });
+    window.location.href = url;
+  }
 
-  // Esc / browser UI exit counts as the user choosing non-fullscreen.
-  document.addEventListener('fullscreenchange', function () {
-    if (!isFs() && !navigating) setWant(false);
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || d.pb !== 'fs-state') return;
+    shellFs = !!d.value;
+    document.dispatchEvent(new CustomEvent('pbfullscreenchange'));
   });
 
   window.PBFullscreen = {
-    isFs: isFs, want: want, enter: enter, exit: exit, toggle: toggle,
-    hasChoice: hasChoice, setChoice: setChoice, resumeOnGesture: resumeOnGesture,
-    markNavigating: markNavigating,
+    framed: framed,
+    isFs: isFs, want: isFs,
+    enter: enter, exit: exit, toggle: toggle, navigate: navigate,
+    hasChoice: function () { return framed; },
+    setChoice: function () {},
+    markNavigating: function () {},
+    resumeOnGesture: function () {},
   };
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', resumeOnGesture);
-  } else {
-    resumeOnGesture();
+  if (framed) post({ pb: 'fs-query' });
+
+  // Opened/reloaded outside the shell (deep link to a page): always restart at the landing shell.
+  if (!framed && /(Booth|Result)\.dc\.html$/.test(location.pathname)) {
+    location.replace('index.html');
   }
 })();

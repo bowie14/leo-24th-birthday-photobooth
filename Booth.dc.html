@@ -93,6 +93,7 @@ class Component extends DCLogic {
     this.onResize = () => this.setState({ vw: window.innerWidth, vh: window.innerHeight });
     window.addEventListener('resize', this.onResize);
     document.addEventListener('fullscreenchange', this.onFullscreenChange);
+    document.addEventListener('pbfullscreenchange', this.onFullscreenChange);
 
     // once in the booth, phones must stay landscape
     const portraitQuery = window.matchMedia('(orientation: portrait)');
@@ -125,12 +126,13 @@ class Component extends DCLogic {
   componentWillUnmount() {
     window.removeEventListener('resize', this.onResize);
     document.removeEventListener('fullscreenchange', this.onFullscreenChange);
+    document.removeEventListener('pbfullscreenchange', this.onFullscreenChange);
     if (this._portraitQuery) this._portraitQuery.removeEventListener('change', this.onOrientationChange);
     if (this._stream) this._stream.getTracks().forEach((t) => t.stop());
     if (this._countdownTimer) clearInterval(this._countdownTimer);
   }
 
-  onFullscreenChange = () => this.setState({ isFullscreen: !!document.fullscreenElement });
+  onFullscreenChange = () => this.setState({ isFullscreen: !!(window.PBFullscreen && window.PBFullscreen.isFs()) });
 
   toggleFullscreen = () => {
     if (window.PBFullscreen) window.PBFullscreen.toggle();
@@ -302,8 +304,8 @@ class Component extends DCLogic {
   };
 
   navigateTo = (url) => {
-    if (window.PBFullscreen) window.PBFullscreen.markNavigating();
-    window.location.href = url;
+    if (window.PBFullscreen) window.PBFullscreen.navigate(url);
+    else window.location.href = url;
   };
 
   handleRetrySave = () => {

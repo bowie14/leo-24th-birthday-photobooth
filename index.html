@@ -2,219 +2,82 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="./support.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Photobooth</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#b7c1f8; overflow:hidden; }
+  #pb-frame { display:block; border:0; width:100vw; height:100vh; }
+</style>
 </head>
 <body>
-<x-dc>
-<helmet>
-<script src="fullscreen.js"></script>
-<style>
-  @keyframes spin-hint { 0%,100%{ transform: rotate(0deg); } 50%{ transform: rotate(90deg); } }
-  html, body { margin: 0; padding: 0; }
-</style>
-</helmet>
-<div style="position:relative;width:100vw;height:100vh;overflow:hidden;background:#b7c1f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-  <sc-if value="{{ !entered }}" hint-placeholder-val="{{ true }}">
-    <div style="{{ stageStyle }}">
-      <img ref="{{ setBgRef }}" src="uploads/landing-desktop.png" alt="landing background" style="position:absolute;inset:0;width:100%;height:100%;" />
-      <img
-        src="uploads/booth.png"
-        alt="Tap to start"
-        onClick="{{ onBoothClick }}"
-        onMouseDown="{{ onPressStart }}"
-        onMouseUp="{{ onPressEnd }}"
-        onMouseLeave="{{ onPressEnd }}"
-        onTouchStart="{{ onPressStart }}"
-        onTouchEnd="{{ onPressEnd }}"
-        style="{{ boothStyle }}"
-      />
-    </div>
-    <sc-if value="{{ showRotateOverlay }}" hint-placeholder-val="{{ false }}">
-      <div style="position:absolute;inset:0;background:rgba(255,255,255,0.5);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;z-index:20;">
-        <svg width="72" height="72" viewBox="0 0 24 24" fill="none" style="animation:spin-hint 1.4s ease-in-out infinite;">
-          <rect x="6" y="2" width="12" height="20" rx="2" stroke="#1a1550" stroke-width="1.8"></rect>
-          <line x1="10" y1="19" x2="14" y2="19" stroke="#1a1550" stroke-width="1.8" stroke-linecap="round"></line>
-        </svg>
-        <div style="font-size:22px;font-weight:600;color:#1a1550;text-align:center;padding:0 32px;">Turn your phone sideways to start!</div>
-      </div>
-    </sc-if>
-  </sc-if>
-  <div onClick="{{ onToggleFullscreen }}" style="position:fixed;right:40px;bottom:40px;z-index:50;display:flex;align-items:center;gap:8px;padding:11px 18px;border-radius:999px;background:rgba(255,255,255,0.82);border:1px solid rgba(26,21,80,0.14);color:#1a1550;font-size:13px;font-weight:600;letter-spacing:0.01em;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 4px 14px rgba(26,21,80,0.12);" style-hover="background:rgba(255,255,255,0.96);">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1a1550" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="4 9 4 4 9 4"></polyline>
-      <polyline points="15 4 20 4 20 9"></polyline>
-      <polyline points="20 15 20 20 15 20"></polyline>
-      <polyline points="9 20 4 20 4 15"></polyline>
-    </svg>
-    <span>{{ fullscreenLabel }}</span>
+<iframe id="pb-frame" title="Photobooth" allow="camera;microphone;fullscreen" allowfullscreen></iframe>
+
+<div id="pb-intro" style="position:fixed;inset:0;z-index:120;background:rgba(13,16,48,0.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;backdrop-filter:blur(3px);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <div style="color:#fff;font-size:22px;font-weight:600;text-align:center;line-height:1.4;max-width:22ch;">Enter full screen for better experience</div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button id="pb-intro-fs" style="display:flex;align-items:center;gap:8px;padding:12px 22px;border:0;border-radius:999px;background:#fff;color:#1a1550;font:700 14px inherit;cursor:pointer;box-shadow:0 6px 18px rgba(13,16,48,0.28);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1a1550" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="4 9 4 4 9 4"></polyline>
+        <polyline points="15 4 20 4 20 9"></polyline>
+        <polyline points="20 15 20 20 15 20"></polyline>
+        <polyline points="9 20 4 20 4 15"></polyline>
+      </svg>
+      <span>Full screen</span>
+    </button>
+    <button id="pb-intro-skip" style="padding:12px 22px;border-radius:999px;background:rgba(255,255,255,0.16);border:1px solid rgba(255,255,255,0.45);color:#fff;font:600 14px inherit;cursor:pointer;">Skip</button>
   </div>
-  <sc-if value="{{ showIntro }}" hint-placeholder-val="{{ false }}">
-    <div style="position:fixed;inset:0;z-index:120;background:rgba(13,16,48,0.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;backdrop-filter:blur(3px);">
-      <div style="color:#fff;font-size:22px;font-weight:600;text-align:center;line-height:1.4;max-width:22ch;">Enter full screen for better experience</div>
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div onClick="{{ onIntroFullscreen }}" style="display:flex;align-items:center;gap:8px;padding:12px 22px;border-radius:999px;background:#fff;color:#1a1550;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 6px 18px rgba(13,16,48,0.28);">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1a1550" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="4 9 4 4 9 4"></polyline>
-            <polyline points="15 4 20 4 20 9"></polyline>
-            <polyline points="20 15 20 20 15 20"></polyline>
-            <polyline points="9 20 4 20 4 15"></polyline>
-          </svg>
-          <span>Full screen</span>
-        </div>
-        <div onClick="{{ onIntroSkip }}" style="padding:12px 22px;border-radius:999px;background:rgba(255,255,255,0.16);border:1px solid rgba(255,255,255,0.45);color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Skip</div>
-      </div>
-    </div>
-  </sc-if>
 </div>
 
-</x-dc>
-<script type="text/x-dc" data-dc-script>
-class Component extends DCLogic {
-  state = { isTouch: false, isPortrait: false, entered: false, showRotateOverlay: false, pressed: false, vw: 1440, vh: 900, isFullscreen: false, showIntro: false };
+<script>
+(function () {
+  var frame = document.getElementById('pb-frame');
+  var intro = document.getElementById('pb-intro');
 
-  componentDidMount() {
-    const touchQuery = window.matchMedia('(pointer: coarse) and (hover: none)');
-    const portraitQuery = window.matchMedia('(orientation: portrait)');
-    this.setState({ isTouch: touchQuery.matches, isPortrait: portraitQuery.matches, vw: window.innerWidth, vh: window.innerHeight });
+  // A reload of the app always lands on the landing page.
+  frame.src = 'Landing.dc.html';
 
-    this.onResize = () => this.setState({ vw: window.innerWidth, vh: window.innerHeight });
-    window.addEventListener('resize', this.onResize);
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
 
-    this.onOrientationChange = (e) => {
-      const isPortrait = e.matches;
-      if (this.state.showRotateOverlay && !isPortrait) {
-        this.navigateTo('Booth.dc.html');
-        return;
-      }
-      this.setState({ isPortrait });
-    };
-    this.onOrientationChangeGuard = () => {};
-    document.addEventListener('fullscreenchange', this.onFullscreenChange);
-    const FS = window.PBFullscreen;
-    this.setState({ isFullscreen: !!(FS && FS.isFs()), showIntro: !!(FS && !FS.hasChoice()) });
-    portraitQuery.addEventListener('change', this.onOrientationChange);
-    this._portraitQuery = portraitQuery;
+  function enter() {
+    var el = document.documentElement;
+    var req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) return;
+    try { Promise.resolve(req.call(el)).catch(function () {}); } catch (e) {}
+  }
+  function leave() {
+    var ex = document.exitFullscreen || document.webkitExitFullscreen;
+    if (!ex) return;
+    try { Promise.resolve(ex.call(document)).catch(function () {}); } catch (e) {}
   }
 
-  componentWillUnmount() {
-    if (this._portraitQuery) this._portraitQuery.removeEventListener('change', this.onOrientationChange);
-    window.removeEventListener('resize', this.onResize);
-    document.removeEventListener('fullscreenchange', this.onFullscreenChange);
+  function sendState() {
+    try { frame.contentWindow.postMessage({ pb: 'fs-state', value: isFs() }, '*'); } catch (e) {}
   }
 
-  onFullscreenChange = () => this.setState({ isFullscreen: !!document.fullscreenElement });
+  document.addEventListener('fullscreenchange', sendState);
+  document.addEventListener('webkitfullscreenchange', sendState);
+  frame.addEventListener('load', sendState);
 
-  toggleFullscreen = () => {
-    if (window.PBFullscreen) window.PBFullscreen.toggle();
-  };
+  window.addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || !d.pb) return;
+    if (d.pb === 'nav' && typeof d.url === 'string') {
+      // Fullscreen lives on this shell document, so swapping the page keeps it.
+      frame.src = d.url;
+    } else if (d.pb === 'fs-enter') enter();
+    else if (d.pb === 'fs-exit') leave();
+    else if (d.pb === 'fs-toggle') { isFs() ? leave() : enter(); }
+    else if (d.pb === 'fs-query') sendState();
+  });
 
-  handleIntroFullscreen = () => {
-    const FS = window.PBFullscreen;
-    if (FS) { FS.setChoice('fullscreen'); FS.enter(); }
-    this.setState({ showIntro: false });
-  };
-
-  handleIntroSkip = () => {
-    const FS = window.PBFullscreen;
-    if (FS) FS.setChoice('skip');
-    this.setState({ showIntro: false });
-  };
-
-  componentDidUpdate() {
-    this.syncImageRefs();
-  }
-
-  setBgRef = (el) => { this.bgRef = el; this.syncImageRefs(); };
-
-  computeBgSrc() {
-    const { isTouch, isPortrait } = this.state;
-    if (!isTouch) return 'uploads/landing-desktop.png';
-    return isPortrait ? 'uploads/landing-mobile-portrait.png' : 'uploads/landing-mobile-landscape.png';
-  }
-
-  syncImageRefs = () => {
-    const bgSrc = this.computeBgSrc();
-    if (this.bgRef && this.bgRef.getAttribute('src') !== bgSrc) this.bgRef.src = bgSrc;
-  };
-
-  navigateTo = (url) => {
-    if (window.PBFullscreen) window.PBFullscreen.markNavigating();
-    window.location.href = url;
-  };
-
-  handleBoothClick = () => {
-    if (this.state.isTouch && this.state.isPortrait) {
-      this.setState({ showRotateOverlay: true });
-    } else {
-      this.navigateTo('Booth.dc.html');
-    }
-  };
-
-  renderVals() {
-    const { isTouch, isPortrait } = this.state;
-
-    // rect % coords computed from each landing SVG's booth rect (viewBox matches the PNG's aspect ratio)
-    let rect, designW, designH;
-    if (!isTouch) {
-      rect = { left: 30.936, top: 28.226, width: 38.176, height: 65.484 };
-      designW = 1440; designH = 900;
-    } else if (isPortrait) {
-      rect = { left: 9.151, top: 37.475, width: 81.667, height: 40.457 };
-      designW = 390; designH = 844;
-    } else {
-      rect = { left: 36.495, top: 29.028, width: 27.047, height: 62.741 };
-      designW = 844; designH = 390;
-    }
-
-    // "cover" the viewport with a box that keeps the design's own aspect ratio,
-    // so the booth image never stretches independently of the background.
-    const vw = this.state.vw || designW;
-    const vh = this.state.vh || designH;
-    const scale = Math.max(vw / designW, vh / designH) * 0.95;
-    const stageW = designW * scale;
-    const stageH = designH * scale;
-    const stageStyle = {
-      position: 'absolute',
-      left: (vw - stageW) / 2 + 'px',
-      top: (vh - stageH) / 2 + 'px',
-      width: stageW + 'px',
-      height: stageH + 'px',
-    };
-
-    const pressedScale = this.state.pressed ? 0.96 : 1;
-    const boothStyle = {
-      position: 'absolute',
-      left: rect.left + '%',
-      top: rect.top + '%',
-      width: rect.width + '%',
-      height: rect.height + '%',
-      cursor: 'pointer',
-      transform: `scale(${pressedScale})`,
-      opacity: this.state.pressed ? 0.9 : 1,
-      transition: 'transform 0.12s ease, opacity 0.12s ease',
-      userSelect: 'none',
-      WebkitTapHighlightColor: 'transparent',
-    };
-
-    return {
-      setBgRef: this.setBgRef,
-      onToggleFullscreen: this.toggleFullscreen,
-      showIntro: this.state.showIntro,
-      onIntroFullscreen: this.handleIntroFullscreen,
-      onIntroSkip: this.handleIntroSkip,
-      fullscreenLabel: this.state.isFullscreen ? 'Exit full screen' : 'Full screen',
-      stageStyle,
-      boothStyle,
-      entered: this.state.entered,
-      showRotateOverlay: this.state.showRotateOverlay,
-      onBoothClick: this.handleBoothClick,
-      onPressStart: () => this.setState({ pressed: true }),
-      onPressEnd: () => this.setState({ pressed: false }),
-    };
-  }
-}
-
+  document.getElementById('pb-intro-fs').addEventListener('click', function () {
+    enter();
+    intro.style.display = 'none';
+  });
+  document.getElementById('pb-intro-skip').addEventListener('click', function () {
+    intro.style.display = 'none';
+  });
+})();
 </script>
 </body>
 </html>
